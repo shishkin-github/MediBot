@@ -1,0 +1,2 @@
+"""MediBot package."""
+

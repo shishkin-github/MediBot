@@ -1,0 +1,10 @@
+services:
+  medibot:
+    build: .
+    container_name: medibot
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
