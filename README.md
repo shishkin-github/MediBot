@@ -1,112 +1,94 @@
-# MediBot | Голос Души
+[English](README.md) | [Русский](README.ru.md)
 
-Проект переносит сценарий Make (`Голос Души.blueprint.json`) в самостоятельного Telegram-бота на Python
+# MediBot
 
-Бот:
-- принимает сообщения через `long polling` (без webhook);
-- генерирует ответы через Google Gemini API (модель `gemma-3-12b-it`);
-- хранит историю диалога пользователя в SQLite;
-- поддерживает единый HTTP/HTTPS-прокси для Telegram API и Gemini API;
-- готов к запуску в Docker.
+MediBot is an open-source Telegram bot for gentle emotional support in Russian. It combines curated support templates for common difficult states with a separate "Master" mode powered by Gemma 4 through the Google Gemini API
 
-## Что делает бот
+The repository is aimed at makers who want a transparent and easy-to-run support bot: predictable button replies, lightweight infrastructure, SQLite persistence, and a dedicated safety route for crisis messages
 
-Логика повторяет исходный Make-сценарий:
+## What the bot does
 
-1. `/start` или `🛑 Завершить диалог с мастером`
-   - бот возвращает пользователя в главное меню;
-   - очищает историю диалога в базе
-2. Нажатие кнопок главного меню
-   - бот выбирает инструкцию по конкретной кнопке;
-   - отправляет запрос в Gemini;
-   - возвращает короткий поддерживающий ответ
-3. Любой другой текст (включая `🧙‍♂️ Поговорить с Мастером`)
-   - бот работает в режиме «Мастер» с учетом истории;
-   - сохраняет новый фрагмент истории (`User` / `Master`) в SQLite;
-   - отправляет ответ и клавиатуру с кнопкой завершения диалога
+- gives deterministic support replies for six quick-help buttons
+- rotates support templates to reduce repetition for the same user
+- switches to a conversational "Master" mode for free-form messages
+- stores Master-mode dialog history in SQLite
+- routes crisis-language messages away from normal flows into a fixed safety response
+- works through `long polling`, with optional proxy support and Docker deployment
 
-Аудио-ветки предусмотрены в конфигурации, но по умолчанию выключены (`AUDIO_ENABLED=false`)
+## Conversation modes
 
-## Архитектура
+### Support buttons
 
-```mermaid
-flowchart LR
-    T[Telegram Update] --> P[Long Polling Loop]
-    P --> R[Router]
-    R -->|Reset| TG1[sendMessage: Main Menu]
-    R -->|Buttons| G1[Gemini API]
-    R -->|Master| S1[SQLite: get history]
-    G1 --> TG2[sendMessage: AI reply]
-    S1 --> G2[Gemini API]
-    G2 --> S2[SQLite: upsert history]
-    S2 --> TG3[sendMessage: Master reply]
+The main menu includes six support buttons:
+
+- `💭 Мне тяжело`
+- `🌫 Я потерял себя`
+- `💔 Я ничего не хочу`
+- `🌿 Хочу почувствовать покой`
+- `💫 Хочу вспомнить смысл`
+- `📿 Получить практику`
+
+These buttons do not call an LLM. They use a curated template catalog based on [`mediabot_support_templates.md`](mediabot_support_templates.md) with anti-repeat rules:
+
+- the last 7 templates in the same block are excluded
+- the same method family is not repeated twice in a row
+- the exact template has a 14-day cooldown
+
+### Master mode
+
+Any free-form message that is not a reset command, crisis message, or support button goes to Master mode
+
+Master mode:
+
+- uses `gemma-4-26b-a4b-it`
+- calls Gemini API in a fast, non-thinking profile
+- returns short, warm replies
+- stores `User / Master` history in SQLite for context
+
+### Crisis route
+
+If a message contains crisis markers such as self-harm or suicide intent, the bot does not continue the normal conversation. It returns a fixed safety response and does not add that message to ordinary Master history
+
+## Quick start with Docker
+
+1. Clone the repository
+
+```bash
+git clone https://github.com/shishkin-github/medibot.git
+cd medibot
 ```
 
-## Структура проекта
+2. Create `.env` from `.env.example`
 
-```text
-app/
-  config.py        # загрузка и валидация .env
-  main.py          # polling loop и обработка update
-  router.py        # ветвление логики (reset/buttons/master)
-  telegram_api.py  # Telegram Bot API клиент
-  gemini_api.py    # Gemini generateContent клиент
-  storage.py       # SQLite-хранилище истории
-Dockerfile
-docker-compose.yml
-.env.example
+```bash
+cp .env.example .env
 ```
 
-## Переменные окружения
+3. Fill in at least:
 
-Создайте `.env` на основе `.env.example`.
-
-| Переменная | Обязательна | По умолчанию | Назначение |
-|---|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Да | - | Токен Telegram-бота |
-| `GEMINI_API_KEY` | Да | - | Ключ Google Gemini API |
-| `GEMINI_MODEL` | Нет | `gemma-3-12b-it` | Модель Gemini |
-| `HTTP_PROXY` | Нет | - | HTTP-прокси для всех исходящих запросов |
-| `HTTPS_PROXY` | Нет | - | HTTPS-прокси (должен совпадать с `HTTP_PROXY`) |
-| `SQLITE_PATH` | Нет | `/data/medibot.db` | Путь к SQLite-файлу |
-| `POLL_TIMEOUT_SEC` | Нет | `30` | Таймаут long polling |
-| `POLL_RETRY_DELAY_SEC` | Нет | `2` | Пауза перед повтором при ошибке |
-| `AUDIO_ENABLED` | Нет | `false` | Включение отправки аудио |
-| `AUDIO_ID_HEAVY` и др. | Нет | пусто | `file_id` для 6 кнопок (если аудио включено) |
-
-## Быстрый запуск в Docker
-
-1. Клонирование репозитория:
-   ```bash
-   git clone https://github.com/shishkin-github/medibot.git
-   cd medibot
-   ```
-```
-
-2. Заполните в `.env` минимум:
 - `TELEGRAM_BOT_TOKEN`
 - `GEMINI_API_KEY`
-- `HTTP_PROXY` и `HTTPS_PROXY` (если работаете через прокси)
+- `HTTP_PROXY` and `HTTPS_PROXY` if you need a proxy
 
-3. Запустите:
+4. Start the bot
 
 ```bash
 docker compose up --build -d
 ```
 
-4. Логи:
+5. View logs
 
 ```bash
 docker compose logs -f
 ```
 
-5. Остановка:
+6. Stop the bot
 
 ```bash
 docker compose down
 ```
 
-## Локальный запуск (без Docker)
+## Local run
 
 ```bash
 python -m venv .venv
@@ -115,10 +97,83 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
-## Как бот хранит историю
+## Environment variables
 
-Таблица `dialog_memory`:
-- `chat_id` (`PRIMARY KEY`)
-- `history` (`TEXT`)
-- `updated_at` (`TEXT`, ISO UTC)
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | yes | - | Telegram bot token |
+| `GEMINI_API_KEY` | yes | - | Google Gemini API key |
+| `GEMINI_MODEL` | no | `gemma-4-26b-a4b-it` | Gemma model for Master mode |
+| `CRISIS_SUPPORT_MESSAGE` | no | built-in Russian safety text | Safety reply for crisis route |
+| `HTTP_PROXY` | no | - | Proxy URL for outbound traffic |
+| `HTTPS_PROXY` | no | - | Must match `HTTP_PROXY` in this project |
+| `SQLITE_PATH` | no | `/data/medibot.db` | SQLite database path |
+| `POLL_TIMEOUT_SEC` | no | `30` | Telegram polling timeout |
+| `POLL_RETRY_DELAY_SEC` | no | `2` | Delay before retry after polling error |
+| `AUDIO_ENABLED` | no | `false` | Enables optional audio sends for support buttons |
+| `AUDIO_ID_HEAVY` and related vars | no | empty | Telegram `file_id` values for button audio |
 
+## Architecture
+
+```mermaid
+flowchart LR
+    T[Telegram update] --> P[Long polling loop]
+    P --> R[Router]
+    R -->|Crisis| C[Fixed safety reply]
+    R -->|Support button| S[Template selector + SQLite template log]
+    R -->|Master| H[SQLite dialog history]
+    H --> G[Gemma 4 via Gemini API]
+    S --> TG1[sendMessage]
+    C --> TG2[sendMessage]
+    G --> TG3[sendMessage]
+```
+
+## Project structure
+
+```text
+app/
+  config.py
+  gemini_api.py
+  main.py
+  router.py
+  storage.py
+  support_templates.py
+  telegram_api.py
+  text_utils.py
+tests/
+  ...
+.env.example
+Dockerfile
+docker-compose.yml
+requirements.txt
+```
+
+## Running tests
+
+```bash
+pytest -q
+```
+
+The current suite covers:
+
+- Gemma request payloads and retries
+- UI text normalization
+- support-template anti-repeat logic
+- storage behavior
+- router behavior
+- smoke flows for support, Master fallback, and crisis routing
+
+## Safety and limitations
+
+MediBot is a support bot, not a medical device, crisis hotline, or diagnostic tool
+
+Current limitations:
+
+- there is no country-specific emergency contact database
+- Master history is stored in full and is not yet compacted
+- there is no built-in analytics dashboard for template performance or crisis-hit rate
+- the bot focuses on Russian-language messaging and is not localized yet
+
+## Project note
+
+This repository grew out of an earlier Make-based automation flow. The current version is a standalone Python implementation intended to be easier to run, test, and evolve in a public repository
