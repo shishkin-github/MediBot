@@ -6,9 +6,12 @@ from urllib.parse import quote
 
 import httpx
 
+from app.text_utils import normalize_ui_text, sanitize_model_text
+
 
 class GeminiAPI:
     _TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+    _DEFAULT_MAX_OUTPUT_TOKENS = 384
 
     def __init__(self, api_key: str, model: str, client: httpx.Client) -> None:
         self._api_key = api_key
@@ -78,8 +81,9 @@ class GeminiAPI:
             ],
             "generationConfig": {
                 "temperature": 1,
-                "topP": 1,
-                "maxOutputTokens": 2048,
+                "topP": 0.95,
+                "topK": 64,
+                "maxOutputTokens": GeminiAPI._DEFAULT_MAX_OUTPUT_TOKENS,
             },
         }
         if use_system_instruction and system_prompt.strip():
@@ -93,7 +97,10 @@ class GeminiAPI:
         text = GeminiAPI._extract_text(response_json)
         if text == "":
             raise RuntimeError("Gemini returned an empty text response.")
-        return text
+        normalized_text = normalize_ui_text(text)
+        if normalized_text == "":
+            raise RuntimeError("Gemini returned an empty text response.")
+        return normalized_text
 
     @staticmethod
     def _extract_text(response_json: dict[str, Any]) -> str:
@@ -116,8 +123,8 @@ class GeminiAPI:
                     continue
                 text = part.get("text")
                 if isinstance(text, str) and text.strip():
-                    chunks.append(text.strip())
-        return "\n".join(chunks).strip()
+                    chunks.append(sanitize_model_text(text.strip()))
+        return "\n".join(chunk for chunk in chunks if chunk).strip()
 
     @staticmethod
     def _should_retry_without_system_instruction(response: httpx.Response) -> bool:
