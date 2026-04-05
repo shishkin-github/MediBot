@@ -36,7 +36,9 @@ def test_gemma_4_payload_uses_fast_generation_profile_without_thinking() -> None
         "maxOutputTokens": 384,
     }
     assert "thinkingConfig" not in payload["generationConfig"]
-    assert payload["system_instruction"] == {"parts": [{"text": "system prompt"}]}
+    system_instruction = payload["system_instruction"]["parts"][0]["text"]
+    assert "system prompt" in system_instruction
+    assert "<final_answer>...</final_answer>" in system_instruction
 
 
 def test_gemini_retries_without_system_instruction_for_legacy_gemma_models() -> None:
@@ -105,6 +107,64 @@ def test_gemini_sanitizes_thinking_blocks_and_final_dot() -> None:
     api = GeminiAPI(api_key="k", model="gemma-4-26b-a4b-it", client=client)
 
     assert api.generate_text("system prompt", "user prompt") == "Ответ без внутреннего рассуждения"
+
+
+def test_gemini_extracts_only_final_answer_from_tagged_response() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": "Role: hidden\n<final_answer>Только это должно уйти пользователю.</final_answer>"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+    api = GeminiAPI(api_key="k", model="gemma-4-26b-a4b-it", client=client)
+
+    assert api.generate_text("system prompt", "user prompt") == "Только это должно уйти пользователю"
+
+
+def test_gemini_strips_prompt_leakage_when_model_ignores_output_contract() -> None:
+    leaked = """
+*   Role: Master-psychologist-esotericist.
+*   Style: Soft, deep, mindful.
+*   Goal: Lead to awareness through questions and metaphors.
+
+"Приветствую тебя в этом пространстве тишины и смыслов. Какая нить твоей души просит внимания сегодня? О чем шепчет твое сердце, когда шум внешнего мира затихает?"
+Приветствую тебя в этом пространстве тишины и смыслов. Какая нить твоей души просит внимания сегодня? О чем шепчет твое сердце, когда шум внешнего мира затихает?
+"""
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [{"text": leaked}]
+                        }
+                    }
+                ]
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), timeout=5.0)
+    api = GeminiAPI(api_key="k", model="gemma-4-26b-a4b-it", client=client)
+
+    assert (
+        api.generate_text("system prompt", "user prompt")
+        == "Приветствую тебя в этом пространстве тишины и смыслов. Какая нить твоей души просит внимания сегодня? О чем шепчет твое сердце, когда шум внешнего мира затихает?"
+    )
 
 
 def test_gemini_raises_runtime_error_with_sanitized_message() -> None:

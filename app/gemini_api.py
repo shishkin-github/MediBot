@@ -12,6 +12,11 @@ from app.text_utils import normalize_ui_text, sanitize_model_text
 class GeminiAPI:
     _TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
     _DEFAULT_MAX_OUTPUT_TOKENS = 384
+    _OUTPUT_CONTRACT = (
+        "Верни только итоговый текст для пользователя внутри тегов "
+        "<final_answer>...</final_answer>. "
+        "Не добавляй анализ, черновики, роли, список проверок, пояснения или текст вне этих тегов"
+    )
 
     def __init__(self, api_key: str, model: str, client: httpx.Client) -> None:
         self._api_key = api_key
@@ -36,7 +41,7 @@ class GeminiAPI:
         if self._should_retry_without_system_instruction(response):
             fallback_prompt = (
                 "Следуй этой роли и стилю ответа:\n"
-                f"{system_prompt}\n\n"
+                f"{self._augment_system_prompt(system_prompt)}\n\n"
                 "Запрос пользователя:\n"
                 f"{user_prompt}"
             )
@@ -88,9 +93,16 @@ class GeminiAPI:
         }
         if use_system_instruction and system_prompt.strip():
             payload["system_instruction"] = {
-                "parts": [{"text": system_prompt}],
+                "parts": [{"text": GeminiAPI._augment_system_prompt(system_prompt)}],
             }
         return payload
+
+    @staticmethod
+    def _augment_system_prompt(system_prompt: str) -> str:
+        base = system_prompt.strip()
+        if base == "":
+            return GeminiAPI._OUTPUT_CONTRACT
+        return f"{base}\n\n{GeminiAPI._OUTPUT_CONTRACT}"
 
     @staticmethod
     def _extract_text_or_raise(response_json: dict[str, Any]) -> str:
