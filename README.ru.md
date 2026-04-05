@@ -28,7 +28,7 @@ MediBot — open-source Telegram-бот для бережной эмоциона
 - `💫 Хочу вспомнить смысл`
 - `📿 Получить практику`
 
-Эти кнопки не вызывают LLM. Они используют каталог шаблонов на основе [`mediabot_support_templates.md`](mediabot_support_templates.md) и правила анти-повтора:
+Эти кнопки не вызывают LLM. Они используют каталог шаблонов и правила анти-повтора:
 
 - исключаются последние 7 шаблонов в рамках одного блока
 - одна и та же `method_family` не выдаётся подряд
@@ -55,7 +55,7 @@ MediBot — open-source Telegram-бот для бережной эмоциона
 
 ```bash
 git clone https://github.com/shishkin-github/medibot.git
-cd medibot
+cd MediBot
 ```
 
 2. Создайте `.env` на основе `.env.example`

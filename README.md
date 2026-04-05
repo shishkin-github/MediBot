@@ -28,7 +28,7 @@ The main menu includes six support buttons:
 - `💫 Хочу вспомнить смысл`
 - `📿 Получить практику`
 
-These buttons do not call an LLM. They use a curated template catalog based on [`mediabot_support_templates.md`](mediabot_support_templates.md) with anti-repeat rules:
+These buttons do not call an LLM. They use a curated template catalog with anti-repeat rules:
 
 - the last 7 templates in the same block are excluded
 - the same method family is not repeated twice in a row
@@ -55,7 +55,7 @@ If a message contains crisis markers such as self-harm or suicide intent, the bo
 
 ```bash
 git clone https://github.com/shishkin-github/medibot.git
-cd medibot
+cd MediBot
 ```
 
 2. Create `.env` from `.env.example`
