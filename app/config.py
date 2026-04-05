@@ -64,6 +64,7 @@ class Config:
     telegram_bot_token: str
     gemini_api_key: str
     gemini_model: str
+    crisis_support_message: str
     http_proxy: Optional[str]
     https_proxy: Optional[str]
     sqlite_path: str
@@ -99,7 +100,11 @@ class Config:
         return cls(
             telegram_bot_token=_require_env("TELEGRAM_BOT_TOKEN"),
             gemini_api_key=_require_env("GEMINI_API_KEY"),
-            gemini_model=os.getenv("GEMINI_MODEL", "gemma-3-12b-it"),
+            gemini_model=os.getenv("GEMINI_MODEL", "gemma-4-26b-a4b-it"),
+            crisis_support_message=os.getenv(
+                "CRISIS_SUPPORT_MESSAGE",
+                "Мне важно отнестись к этому серьёзно. Если есть риск, что ты можешь навредить себе или кому-то ещё, пожалуйста, сразу обратись в местную экстренную службу или к близкому человеку рядом. Если можешь, не оставайся сейчас один и напиши человеку, которому доверяешь",
+            ),
             http_proxy=http_proxy,
             https_proxy=https_proxy,
             sqlite_path=os.getenv("SQLITE_PATH", "/data/medibot.db"),
@@ -113,4 +118,3 @@ class Config:
             audio_id_practice=_optional_env("AUDIO_ID_PRACTICE"),
             audio_id_calm=_optional_env("AUDIO_ID_CALM"),
         )
-
