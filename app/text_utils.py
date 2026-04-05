@@ -103,9 +103,9 @@ def extract_final_model_reply(text: str) -> str:
             return quoted
         return filtered
 
-    quoted = _extract_last_quoted_block(sanitized)
-    if quoted:
-        return quoted
+    single_wrapped = _extract_single_wrapped_block(sanitized)
+    if single_wrapped:
+        return single_wrapped
 
     return sanitized
 
@@ -214,6 +214,18 @@ def _extract_last_quoted_block(text: str) -> str:
     if not matches:
         return ""
     return sanitize_model_text(matches[-1].group("text")).strip()
+
+
+def _extract_single_wrapped_block(text: str) -> str:
+    stripped = text.strip()
+    if len(stripped) < 2:
+        return ""
+    if (stripped[0], stripped[-1]) not in {('"', '"'), ("«", "»"), ("“", "”")}:
+        return ""
+    inner = _strip_wrapping_quotes(stripped)
+    if inner == "":
+        return ""
+    return sanitize_model_text(inner).strip()
 
 
 def _strip_wrapping_quotes(line: str) -> str:
